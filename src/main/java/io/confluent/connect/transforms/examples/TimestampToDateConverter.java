@@ -1,6 +1,5 @@
 package io.confluent.connect.transforms.examples;
 
-import com.sun.org.apache.xalan.internal.xsltc.compiler.util.Type;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.ConnectRecord;
@@ -9,10 +8,13 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.transforms.Transformation;
-
 import org.apache.kafka.connect.transforms.util.SimpleConfig;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.TimeZone;
 
 @Slf4j
 public abstract class TimestampToDateConverter<R extends ConnectRecord<R>> implements Transformation<R> {
@@ -48,8 +50,20 @@ public abstract class TimestampToDateConverter<R extends ConnectRecord<R>> imple
         for (Field field: record.valueSchema().fields()) {
             newValueStruct.put(field.name(), ((Struct) record.value()).get(field));
         }
-        newValueStruct.put(targetField, "2019-11-11");
+        Long timestamp = ((Struct) record.value()).getInt64(sourceField);
+        newValueStruct.put(targetField, endOfDay(timestamp));
         return newValueStruct;
+    }
+
+    String endOfDay(long timestamp) {
+        LocalDateTime dateTime =
+                LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp),
+                        TimeZone.getDefault().toZoneId());
+        if (dateTime.getHour() > 19) {
+            return dateTime.plusDays(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        } else {
+            return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        }
     }
 
     public R apply(R record) {
